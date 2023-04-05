@@ -20,7 +20,7 @@
 /**********************************************************
  * @param {1} Import_Modules for this FIle
  *********************************************************/
-const Discord = require("discord.js");
+const discord-ts = require("discord.ts");
 const colors = require("colors");
 const enmap = require("enmap");
 const fs = require("fs");
