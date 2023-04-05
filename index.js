@@ -1,158 +1,62 @@
+import { REST } from '@discordjs/rest'
+import { Routes } from 'discord-api-types/v10'
+import logger from 'logger'
+import config from 'config'
+import { basename, sep } from 'path'
+import { promisify } from 'util'
+import glob from 'glob'
+import { type RESTPostAPIChatInputApplicationCommandsJSONBody } from 'discord.js'
+import type { StructureImport } from 'types'
+import type { Command } from '@structures'
 
-/**********************************************************
- * @INFO  [TABLE OF CONTENTS]
- * 1  Import_Modules
-   * 1.1 Validating script for advertisement
- * 2  CREATE_THE_DISCORD_BOT_CLIENT
- * 3  Load_Discord_Buttons_and_Discord_Menus
- * 4  Create_the_client.memer
- * 5  create_the_languages_objects
- * 6  Raise_the_Max_Listeners
- * 7  Define_the_Client_Advertisments
- * 8  LOAD_the_BOT_Functions
- * 9  Login_to_the_Bot
- * 
- *   BOT CODED BY: TOMato6966 | https://milrato.eu
- *********************************************************/
+const { token, clientId, guildId } = config
 
+const glob_ = promisify(glob)
 
-
-/**********************************************************
- * @param {1} Import_Modules for this FIle
- *********************************************************/
-const discord-ts = require("discord.ts");
-const colors = require("colors");
-const enmap = require("enmap");
-const fs = require("fs");
-const OS = require('os');
-const Events = require("events");
-const emojis = require("./botconfig/emojis.json")
-const config = require("./botconfig/config.json")
-const advertisement = require("./botconfig/advertisement.json")
-const { delay } = require("./handlers/functions")
-require('dotenv').config()
-
-
-/**********************************************************
- * @param {2} CREATE_THE_DISCORD_BOT_CLIENT with some default settings
- *********************************************************/
-const client = new Discord.Client({
-  fetchAllMembers: false,
-  restTimeOffset: 0,
-  failIfNotExists: false,
-  shards: "auto",
-  allowedMentions: {
-    parse: ["roles", "users"],
-    repliedUser: false,
-  },
-  partials: ['MESSAGE', 'CHANNEL', 'REACTION', 'GUILD_MEMBER', 'USER'],
-  intents: [Discord.Intents.FLAGS.GUILDS,
-  Discord.Intents.FLAGS.GUILD_MEMBERS,
-  Discord.Intents.FLAGS.GUILD_BANS,
-  Discord.Intents.FLAGS.GUILD_EMOJIS_AND_STICKERS,
-  Discord.Intents.FLAGS.GUILD_INTEGRATIONS,
-  Discord.Intents.FLAGS.GUILD_WEBHOOKS,
-  Discord.Intents.FLAGS.GUILD_INVITES,
-  Discord.Intents.FLAGS.GUILD_VOICE_STATES,
-  Discord.Intents.FLAGS.GUILD_PRESENCES,
-  Discord.Intents.FLAGS.GUILD_MESSAGES,
-  Discord.Intents.FLAGS.GUILD_MESSAGE_REACTIONS,
-  //Discord.Intents.FLAGS.GUILD_MESSAGE_TYPING,
-  Discord.Intents.FLAGS.DIRECT_MESSAGES,
-  Discord.Intents.FLAGS.DIRECT_MESSAGE_REACTIONS,
-    //Discord.Intents.FLAGS.DIRECT_MESSAGE_TYPING
-  ],
-  presence: {
-    activities: [{ name: `${config.status.text}`.replace("{prefix}", config.prefix), type: config.status.type, url: config.status.url }],
-    status: "online"
+const _loadCommands = async (): Promise<
+  RESTPostAPIChatInputApplicationCommandsJSONBody[]
+> => {
+  const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = []
+  const files = await glob_(
+    `${__dirname.split(sep).join('/')}/src/commands/*/*{.ts,.js}`,
+  )
+  if (files.length === 0) {
+    logger.warn('No commands found')
+    return commands
   }
-});
 
+  for (const f of files) {
+    const name = basename(f, '.ts')
+    try {
+      const command = ((await import(f)) as StructureImport<Command>).default
+      commands.push(command.data.toJSON())
+    } catch (err) {
+      if (err instanceof Error) {
+        logger.error(`Command failed to import: ${name}`)
+        logger.error(err.stack)
+      } else logger.error(err)
+    }
+  }
 
-
-/**********************************************************
- * @param {4} Create_the_client.memer property from Tomato's Api 
- *********************************************************/
-const Meme = require("memer-api");
-client.memer = new Meme(process.env.memer_api || config.memer_api); // GET a TOKEN HERE: https://discord.gg/Mc2FudJkgP
-
-
-
-
-
-/**********************************************************
- * @param {5} create_the_languages_objects to select via CODE
- *********************************************************/
-client.la = {}
-var langs = fs.readdirSync("./languages")
-for (const lang of langs.filter(file => file.endsWith(".json"))) {
-  client.la[`${lang.split(".json").join("")}`] = require(`./languages/${lang}`)
-}
-Object.freeze(client.la)
-//function "handlemsg(txt, options? = {})" is in /handlers/functions 
-
-
-
-
-/**********************************************************
- * @param {6} Raise_the_Max_Listeners to 0 (default 10)
- *********************************************************/
-client.setMaxListeners(0);
-Events.defaultMaxListeners = 0;
-process.env.UV_THREADPOOL_SIZE = OS.cpus().length;
-
-
-/**********************************************************
- * @param {7} Define_the_Client_Advertisments from the Config File
- *********************************************************/
-client.ad = {
-  enabled: advertisement.adenabled,
-  statusad: advertisement.statusad,
-  spacedot: advertisement.spacedot,
-  textad: advertisement.textad
+  return commands
 }
 
+const rest = new REST({ version: '10' }).setToken(token)
 
+logger.info('Deploying commands...')
 
-/**********************************************************
- * @param {8} LOAD_the_BOT_Functions 
- *********************************************************/
-//those are must haves, they load the dbs, events and commands and important other stuff
-function requirehandlers() {
-  ["extraevents", "clientvariables", "command", "loaddb", "events", "erelahandler", "slashCommands"].forEach(handler => {
-    try { require(`./handlers/${handler}`)(client); } catch (e) { console.log(e.stack ? String(e.stack).grey : String(e).grey) }
-  });
-  ["twitterfeed", /*"twitterfeed2",*/ "livelog", "youtube", "tiktok"].forEach(handler => {
-    try { require(`./social_log/${handler}`)(client); } catch (e) { console.log(e.stack ? String(e.stack).grey : String(e).grey) }
-  });
-  ["logger", "anti_nuke", "antidiscord", "antilinks", "anticaps", "antispam", "blacklist", "keyword", "antimention", "autobackup",
+const applicationCommands =
+  process.env.NODE_ENV === 'production'
+    ? Routes.applicationCommands(clientId)
+    : Routes.applicationGuildCommands(clientId, guildId)
 
-    "apply", "ticket", "ticketevent",
-    "roster", "joinvc", "epicgamesverification", "boostlog",
-
-    "welcome", "leave", "ghost_ping_detector", "antiselfbot",
-
-    "jointocreate", "reactionrole", "ranking", "timedmessages",
-
-    "membercount", "autoembed", "suggest", "validcode", "dailyfact", "autonsfw",
-    "aichat", "mute", "automeme", "counter"].forEach(handler => {
-      try { require(`./handlers/${handler}`)(client); } catch (e) { console.log(e.stack ? String(e.stack).grey : String(e).grey) }
-    });
-} requirehandlers();
-
-
-/**********************************************************
- * @param {9} Login_to_the_Bot
- *********************************************************/
-client.login(process.env.token || config.token);
-
-
-/**********************************************************
- * @INFO
- * Bot Coded by Tomato#6966 | https://discord.gg/milrato
- * @INFO
- * Work for Milrato Development | https://milrato.eu
- * @INFO
- * Please mention him / Milrato Development, when using this Code!
- * @INFO
- *********************************************************/
+;(async (): Promise<void> => {
+  try {
+    const commands = await _loadCommands()
+    await rest.put(applicationCommands, { body: commands })
+    logger.info(`Commands successfully deployed`)
+  } catch (err) {
+    if (err instanceof Error) logger.error(err.stack)
+    else logger.error(err)
+  }
+})()
