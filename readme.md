@@ -10,3 +10,5 @@ Latest messages in azury:
 - exactly (! 𝐃𝐒 么 Trivee#1597)
 - HE FR TRYNA FRAME U (! 𝐃𝐒 么 Trivee#1597)
 - the amount of effort this child is going to is making me laugh omg (ac1d#3857)
+
+<b>ac1d#3857 is typing</b>
